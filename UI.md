@@ -81,6 +81,35 @@ Three clickable tabs sit directly above the card hand area. Only the active tab'
 
 ---
 
+## Combat Popup System
+
+Large centered popups mirror every combat log entry, providing at-a-glance feedback on significant events.
+
+**Position:** Center of battlefield, slightly above vertical screen center (`x=576, y=310` in screen coordinates). Sits on its own `CanvasLayer` (layer 10) above all other UI — never blocked by any element.
+
+**Script:** `scripts/combat_popup.gd` — self-contained Control node with an internal message queue and state machine (`idle → fade_in → showing → fade_out`).
+
+**Visual style:**
+- Font: 36 px (≈ 3× combat log size), bold, centered
+- Same color coding as the combat log (Red / Yellow / Blue / Gray)
+- Background: dark semi-transparent pill — `Color(0.1, 0.1, 0.1, 0.7)`, 14 px corner radius
+- Pill size: 760 × 60 px, centered on the anchor point
+
+**Timing & animation:**
+- Animates in: slides up 20 px + fades in over 0.15 s
+- Stays visible for 3 seconds
+- Fades out over 0.3 s
+- Next queued message starts immediately after the fade-out completes
+
+**Queueing:**
+- Every `add_entry()` call in `CombatLog` calls `popup.show_message(text, color)`
+- `CombatPopup` is found via the `"combat_popup"` group (no hard-wired node path)
+- If idle when a message arrives → shows immediately
+- If busy → message is queued; all queued messages play sequentially (3 s each)
+- Rapid sub-part hits produce a chain of popups shown one after another
+
+---
+
 ## Body Selector Positioning
 
 - Player body highlight: left column, mid-lower area of the screen

@@ -17,6 +17,10 @@ func add_entry(message: String, color: Color = Color.WHITE):
 		lines[0].queue_free()
 		lines.pop_front()
 
+	var popups = get_tree().get_nodes_in_group("combat_popup")
+	if not popups.is_empty():
+		popups[0].show_message(message, color)
+
 func log_attack(message: String):
 	add_entry(message, Color(1, 0.4, 0.4))
 
