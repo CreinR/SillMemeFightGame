@@ -187,3 +187,24 @@ Attack limb mapping:
 - Intent label shows: `"Attack: X → BodyPart"` (attack + target only; movement and guard remain hidden)
 - Stun causes it to skip attack and pick a new target
 - Enemy stagger (from own Spinning Heel miss or kneecap sub-part hit) blocks movement for the stagger duration
+
+---
+
+## Character Stat System
+
+Each character has four stats per body part, stored in `scripts/character_stats.gd` (`CharacterStats` resource). Stats scale from **0.5 to 1.5** with **1.0 as the neutral default**. Stat profiles are loaded in `battle.gd._ready()` via `player.apply_stats()` and `enemy.apply_stats()`.
+
+### Stats and Their Effects
+
+| Stat | Applies to | Formula | Effect |
+|------|-----------|---------|--------|
+| **Durability** | All parts | `final_hp = base_hp × durability` | Scales the body part's starting HP. Applied once at fight start. |
+| **Toughness** | All parts | `final_chance = base_chance × status_mult × (1 / toughness)` | Higher toughness makes sub-parts harder to hit. Applied in `BodyPart.roll_sub_parts()`. |
+| **Power** | Attacking limbs only | `final_dmg = base_dmg × status_mult × power` | Scales outgoing damage for attacks using that limb. Applied in `battle._apply_player_limb_penalty()` (player) and `enemy._plan_attack()` (enemy). |
+| **Speed** | Attacking limbs only | `miss_chance = 0.2 × (1 / speed)` | Adds a random miss chance to Spinning Heel Kick. Lower speed → more likely to stumble. Applied in `battle._shk_speed_miss()`. |
+
+### Notes
+- Power and Speed are only present in the stats dictionary for limbs that attack (arms, legs). Head and chest have only Durability and Toughness.
+- The `SHK_BASE_MISS` constant in `battle.gd` is set to `0.2` (20% base miss with Speed 1.0).
+- Toughness applies a `1/toughness` multiplier on the rolled chance, so `toughness = 1.3` reduces sub-part hit chance by ~23%; `toughness = 0.7` increases it by ~43%.
+- Stats are visible in the body part hover tooltip as a 5-block bar: `□□□□□` = 0.5, `■■■□□` = 1.0, `■■■■■` = 1.5.

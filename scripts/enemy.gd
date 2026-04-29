@@ -23,6 +23,7 @@ var lung_debuff_value: int = 0   # lung: amount of reduction
 var wrist_miss: bool = false     # wrist: 50% miss on next attack
 var elbow_debuff: int = 0        # elbow: damage reduction on next attack
 var stagger_turns: int = 0       # can't use movement next turn (Spinning Heel miss)
+var stats: CharacterStats = null
 
 # Full new attack roster (used by enemy AI)
 const ATTACK_ROSTER = [
@@ -153,6 +154,20 @@ func _setup_sub_parts():
 			 "log_msg": "Zijn pols wiebelt gevaarlijk. Mikken wordt lastig."},
 		])
 
+const BASE_HP := {
+	"hoofd": 15, "borst": 30,
+	"linkerarm": 20, "rechterarm": 20,
+	"bovenbenen": 20, "voeten": 20,
+}
+
+func apply_stats(cs: CharacterStats) -> void:
+	stats = cs
+	for pname in body_parts:
+		var new_hp := maxi(1, roundi(BASE_HP.get(pname, 20) * cs.get_durability(pname)))
+		body_parts[pname].hp       = new_hp
+		body_parts[pname].max_hp   = new_hp
+		body_parts[pname].toughness = cs.get_toughness(pname)
+
 func _add_subs(part_name: String, subs: Array):
 	var part = body_parts.get(part_name)
 	if part == null:
@@ -241,6 +256,9 @@ func _plan_attack(player_pos: int):
 
 	if lung_debuff_turns > 0:
 		dmg = max(0, dmg - lung_debuff_value)
+
+	if stats != null:
+		dmg = int(dmg * stats.get_power(intent_attack_limb))
 
 	intent_damage = dmg
 

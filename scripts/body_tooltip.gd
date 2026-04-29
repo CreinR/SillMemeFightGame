@@ -8,7 +8,7 @@ const ORANGE_COLOR := Color(1.0, 0.65, 0.1, 1.0)
 const DIM_COLOR    := Color(0.55, 0.55, 0.55, 1.0)
 const FONT_SIZE    := 11
 const HEADER_SIZE  := 12
-const MIN_W        := 210.0
+const MIN_W        := 230.0
 
 const ICONS := {
 	"heart": "❤", "brain": "🧠", "spine": "🦴",
@@ -21,9 +21,10 @@ const SUB_NAMES := {
 	"elbow": "Elbow", "wrist": "Wrist", "kneecap": "Kneecap", "thigh": "Thigh",
 }
 const PART_DISPLAY := {
-	"hoofd": "Head",      "borst": "Chest",
-	"linkerarm": "Left Arm", "rechterarm": "Right Arm",
-	"linkerbeen": "Left Leg", "rechterbeen": "Right Leg",
+	"hoofd": "Head",           "borst": "Chest",
+	"linkerarm": "Left Arm",   "rechterarm": "Right Arm",
+	"bovenbenen": "Upper Legs", "voeten": "Feet",
+	"linkerbeen": "Left Leg",  "rechterbeen": "Right Leg",
 }
 const STATUS_LABELS := ["HEALTHY", "BRUISED", "BROKEN", "DISABLED"]
 const FATAL_EFFECTS := ["heart", "brain", "spine"]
@@ -32,11 +33,12 @@ var _timer:  Timer         = null
 var _panel:  PanelContainer = null
 var _vbox:   VBoxContainer  = null
 
-var _pending_part: String   = ""
-var _pending_bp:   BodyPart = null
-var _pending_rect: Rect2    = Rect2()
-var _pending_side: String   = "left"
-var _active: bool           = false
+var _pending_part:  String         = ""
+var _pending_bp:    BodyPart       = null
+var _pending_rect:  Rect2          = Rect2()
+var _pending_side:  String         = "left"
+var _pending_stats: CharacterStats = null
+var _active: bool                  = false
 
 func _ready():
 	visible = false
@@ -69,11 +71,12 @@ func _ready():
 	_vbox.add_theme_constant_override("separation", 2)
 	_panel.add_child(_vbox)
 
-func queue_show(part_name: String, bp: BodyPart, screen_rect: Rect2, side: String):
-	_pending_part = part_name
-	_pending_bp   = bp
-	_pending_rect = screen_rect
-	_pending_side = side
+func queue_show(part_name: String, bp: BodyPart, screen_rect: Rect2, side: String, cs: CharacterStats = null):
+	_pending_part  = part_name
+	_pending_bp    = bp
+	_pending_rect  = screen_rect
+	_pending_side  = side
+	_pending_stats = cs
 	_active = true
 	_timer.start()
 
@@ -107,6 +110,7 @@ func _build():
 
 	if _pending_bp.sub_parts.is_empty():
 		_add_label("No injuries detected", DIM_COLOR, FONT_SIZE)
+		_build_stat_bars()
 		return
 
 	var any_damaged = false
@@ -117,6 +121,7 @@ func _build():
 
 	if not any_damaged:
 		_add_label("No injuries detected", DIM_COLOR, FONT_SIZE)
+		_build_stat_bars()
 		return
 
 	var fatal_subs: Array = []
@@ -130,6 +135,19 @@ func _build():
 	for sub in (fatal_subs + other_subs):
 		var entry = _sub_entry(sub)
 		_add_label(entry["text"], entry["color"], FONT_SIZE)
+
+	_build_stat_bars()
+
+func _build_stat_bars() -> void:
+	if _pending_stats == null:
+		return
+	_add_sep()
+	_add_stat_row("Durability", _pending_stats.get_durability(_pending_part))
+	_add_stat_row("Toughness",  _pending_stats.get_toughness(_pending_part))
+	if _pending_stats.has_power(_pending_part):
+		_add_stat_row("Power", _pending_stats.get_power(_pending_part))
+	if _pending_stats.has_speed(_pending_part):
+		_add_stat_row("Speed", _pending_stats.get_speed(_pending_part))
 
 func _sub_entry(sub: Dictionary) -> Dictionary:
 	var effect  = sub["effect"]
@@ -180,6 +198,47 @@ func _add_sep():
 	style.thickness = 1
 	sep.add_theme_stylebox_override("separator", style)
 	_vbox.add_child(sep)
+
+func _add_stat_row(stat_name: String, value: float) -> void:
+	const THRESHOLDS := [0.5, 0.7, 0.9, 1.1, 1.3]
+	var bar := ""
+	for t in THRESHOLDS:
+		bar += "■" if value >= t else "□"
+
+	var color: Color
+	if value > 1.05:
+		color = Color(0.3, 0.9, 0.3)
+	elif value < 0.95:
+		color = Color(1.0, 0.45, 0.45)
+	else:
+		color = DIM_COLOR
+
+	var hbox = HBoxContainer.new()
+	hbox.mouse_filter = MOUSE_FILTER_IGNORE
+	hbox.add_theme_constant_override("separation", 4)
+	_vbox.add_child(hbox)
+
+	var name_lbl = Label.new()
+	name_lbl.text = stat_name
+	name_lbl.add_theme_font_size_override("font_size", FONT_SIZE)
+	name_lbl.add_theme_color_override("font_color", DIM_COLOR)
+	name_lbl.mouse_filter = MOUSE_FILTER_IGNORE
+	name_lbl.custom_minimum_size = Vector2(80, 0)
+	hbox.add_child(name_lbl)
+
+	var bar_lbl = Label.new()
+	bar_lbl.text = bar
+	bar_lbl.add_theme_font_size_override("font_size", FONT_SIZE)
+	bar_lbl.add_theme_color_override("font_color", color)
+	bar_lbl.mouse_filter = MOUSE_FILTER_IGNORE
+	hbox.add_child(bar_lbl)
+
+	var val_lbl = Label.new()
+	val_lbl.text = " %.1f" % value
+	val_lbl.add_theme_font_size_override("font_size", FONT_SIZE)
+	val_lbl.add_theme_color_override("font_color", color)
+	val_lbl.mouse_filter = MOUSE_FILTER_IGNORE
+	hbox.add_child(val_lbl)
 
 func _do_position():
 	var sz  = _panel.size

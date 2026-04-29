@@ -14,6 +14,7 @@ var defending_part: String = ""
 var has_defended: bool = false
 var has_attacked: bool = false
 var double_chip_damage: bool = false
+var stats: CharacterStats = null
 
 # Sub-part effect state
 var jaw_skip_attack: int = 0      # skip attack phase for N turns
@@ -107,6 +108,20 @@ func _setup_sub_parts():
 			{"name": "Wrist", "base_chance": 0.25, "effect": "wrist",
 			 "log_msg": "Your wrist wobbles dangerously. Aiming is a suggestion."},
 		])
+
+const BASE_HP := {
+	"hoofd": 15, "borst": 30,
+	"linkerarm": 20, "rechterarm": 20,
+	"bovenbenen": 20, "voeten": 20,
+}
+
+func apply_stats(cs: CharacterStats) -> void:
+	stats = cs
+	for pname in body_parts:
+		var new_hp := maxi(1, roundi(BASE_HP.get(pname, 20) * cs.get_durability(pname)))
+		body_parts[pname].hp       = new_hp
+		body_parts[pname].max_hp   = new_hp
+		body_parts[pname].toughness = cs.get_toughness(pname)
 
 func _add_subs(part_name: String, subs: Array):
 	var part = body_parts.get(part_name)

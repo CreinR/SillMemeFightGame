@@ -50,12 +50,15 @@ func _ready():
 	$CanvasLayer/BattleUI.add_child(tooltip)
 	tooltip.move_to_front()
 
+	player.apply_stats(CharacterStats.kickboxer())
+	enemy.apply_stats(CharacterStats.enemy_default())
+
 	setup_starter_deck()
 	ui.setup(self)
-	body_highlight.setup(enemy, tooltip)
+	body_highlight.setup(enemy, tooltip, enemy.stats)
 	body_selector.setup(body_highlight)
 	body_selector.part_selected.connect(_on_part_selected)
-	player_body_highlight.setup(player, tooltip)
+	player_body_highlight.setup(player, tooltip, player.stats)
 	player_body_highlight.part_selected.connect(_on_player_part_selected)
 	start_player_turn()
 
@@ -414,6 +417,9 @@ func resolve_turn():
 			if player_attack_card.card_name == "Spinning Heel Kick":
 				player.stagger_turns = 1
 				combat_log.log_attack("Missed the spinning heel kick — you stumble!")
+		elif player_attack_card.card_name == "Spinning Heel Kick" and _shk_speed_miss():
+			player.stagger_turns = 1
+			combat_log.log_attack("The spinning heel kick whiffs — you stumble!")
 		else:
 			player_attack_messages = _build_player_attack()
 			player_hit_enemy = true
@@ -607,24 +613,34 @@ func _apply_player_limb_penalty(card: Card, dmg: int, part: String) -> int:
 	var limb_name = ATTACK_LIMB_MAP.get(card.card_name, "")
 	if limb_name == "":
 		return dmg
+
 	var limb = player.body_parts.get(limb_name)
-	if limb == null or limb.status == BodyPart.Status.HEALTHY:
-		return dmg
-	const MULT = {
-		BodyPart.Status.BRUISED:  0.85,
-		BodyPart.Status.BROKEN:   0.6,
-		BodyPart.Status.DISABLED: 0.4,
-	}
-	const STATUS_TEXT = {
-		BodyPart.Status.BRUISED:  "bruised",
-		BodyPart.Status.BROKEN:   "broken",
-		BodyPart.Status.DISABLED: "destroyed",
-	}
-	var mult = MULT.get(limb.status, 1.0)
-	var combo = card.combo_names.get(part, card.card_name)
-	var display = player.LIMB_DISPLAY.get(limb_name, limb_name)
-	combat_log.log_info("Your %s is %s — %s deals reduced damage." % [display, STATUS_TEXT.get(limb.status, ""), combo])
-	return int(dmg * mult)
+	var status_mult := 1.0
+	if limb != null and limb.status != BodyPart.Status.HEALTHY:
+		const MULT = {
+			BodyPart.Status.BRUISED:  0.85,
+			BodyPart.Status.BROKEN:   0.6,
+			BodyPart.Status.DISABLED: 0.4,
+		}
+		const STATUS_TEXT = {
+			BodyPart.Status.BRUISED:  "bruised",
+			BodyPart.Status.BROKEN:   "broken",
+			BodyPart.Status.DISABLED: "destroyed",
+		}
+		status_mult = MULT.get(limb.status, 1.0)
+		var combo = card.combo_names.get(part, card.card_name)
+		var display = player.LIMB_DISPLAY.get(limb_name, limb_name)
+		combat_log.log_info("Your %s is %s — %s deals reduced damage." % [display, STATUS_TEXT.get(limb.status, ""), combo])
+
+	var power := player.stats.get_power(limb_name) if player.stats != null else 1.0
+	return int(dmg * status_mult * power)
+
+const SHK_BASE_MISS := 0.2
+
+func _shk_speed_miss() -> bool:
+	var limb_name = ATTACK_LIMB_MAP.get("Spinning Heel Kick", "voeten")
+	var speed := player.stats.get_speed(limb_name) if player.stats != null else 1.0
+	return randf() < SHK_BASE_MISS / maxf(speed, 0.01)
 
 func _apply_player_guard():
 	if player_guard_card == null:

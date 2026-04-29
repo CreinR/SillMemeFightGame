@@ -8,6 +8,7 @@ enum Status { HEALTHY, BRUISED, BROKEN, DISABLED }
 @export var max_hp: int = 20
 @export var status: Status = Status.HEALTHY
 @export var damage_modifier: float = 1.0
+@export var toughness: float = 1.0  # from CharacterStats; scales sub-part roll chances
 
 # Each entry: {name, hp, base_chance, effect, log_msg}
 var sub_parts: Array = []
@@ -55,7 +56,7 @@ func roll_sub_parts() -> Array:
 	for sub in sub_parts:
 		if sub["hp"] <= 0:
 			continue
-		if randf() < sub["base_chance"] * multiplier:
+		if randf() < sub["base_chance"] * multiplier * (1.0 / maxf(toughness, 0.01)):
 			sub["hp"] -= 1
 			var is_fatal = sub["hp"] <= 0
 			var stage_msgs = sub.get("stage_msgs", [])

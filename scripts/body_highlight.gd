@@ -21,11 +21,13 @@ const DANGER_COLOR   = Color(0.95, 0.1, 0.1, 0.5)
 var enemy_ref: Enemy = null
 var valid_parts: Array = []
 var _tooltip = null
+var _stats: CharacterStats = null
 var _hovered_part: String = ""
 
-func setup(enemy: Enemy, tooltip = null):
+func setup(enemy: Enemy, tooltip = null, stats: CharacterStats = null):
 	enemy_ref = enemy
 	_tooltip  = tooltip
+	_stats    = stats
 	queue_redraw()
 
 func _has_damaged_fatal_organ(part_name: String) -> bool:
@@ -72,7 +74,7 @@ func _input(event: InputEvent):
 	elif enemy_ref != null and enemy_ref.body_parts.has(hit):
 		var bp   = enemy_ref.body_parts[hit]
 		var rect = parts[hit]["rect"]
-		_tooltip.queue_show(hit, bp, Rect2(to_global(rect.position), rect.size), "left")
+		_tooltip.queue_show(hit, bp, Rect2(to_global(rect.position), rect.size), "left", _stats)
 
 func _draw():
 	if enemy_ref == null:
