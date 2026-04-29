@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/player.gd" id="2"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://scripts/body_highlight.gd" id="6"]
 [ext_resource type="Script" path="res://scripts/body_part_selector.gd" id="7"]
 [ext_resource type="Script" path="res://scripts/player_body_highlight.gd" id="8"]
+[ext_resource type="Script" path="res://scripts/card_tabs.gd" id="9"]
 
 [node name="Battle" type="Node2D"]
 script = ExtResource("1")
@@ -143,12 +144,13 @@ offset_right = 500.0
 offset_bottom = 472.0
 text = "Hand: 0 / 10"
 
-[node name="Hand" type="Control" parent="CanvasLayer/BattleUI"]
+[node name="CardTabs" type="Control" parent="CanvasLayer/BattleUI"]
 layout_mode = 0
 offset_left = 220.0
-offset_top = 472.0
+offset_top = 438.0
 offset_right = 900.0
 offset_bottom = 660.0
+script = ExtResource("9")
 
 [node name="PhaseLabel" type="Label" parent="CanvasLayer/BattleUI"]
 layout_mode = 0

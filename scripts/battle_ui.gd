@@ -9,7 +9,7 @@ extends Control
 @onready var enemy_hp_label       = $EnemyPanel/HP
 @onready var enemy_hp_bar         = $EnemyPanel/HPBar
 @onready var enemy_intent_label   = $EnemyPanel/Intent
-@onready var hand_container       = $Hand
+@onready var card_tabs_node        = $CardTabs
 @onready var hand_label           = $HandLabel
 @onready var end_turn_button      = $EndTurnButton
 @onready var phase_label          = $PhaseLabel
@@ -42,6 +42,7 @@ func setup(battle_node: Battle):
 	_style_bars()
 	_create_battlefield()
 	_create_action_tracker()
+	card_tabs_node.setup(battle)
 	update(battle.player, battle.enemy)
 
 func _style_bars():
@@ -254,6 +255,7 @@ func update(player: Player, enemy: Enemy):
 		var label_color = Color(1.0, 0.5, 0.1) if not effects.is_empty() else Color(0, 0, 0, 0)
 		player_status_label.add_theme_color_override("font_color", label_color)
 
+	card_tabs_node.refresh_tab_state()
 	_update_action_tracker()
 	refresh_hand(player)
 
@@ -295,101 +297,74 @@ func _update_action_tracker():
 			guard_text = "Guard: Skip ✓"
 
 	action_tracker_label.text = "[ %s ]  [ %s ]  [ %s ]" % [move_text, atk_text, guard_text]
-	# Position above hand container
-	var hand_pos = hand_container.position
-	action_tracker_label.position = Vector2(hand_pos.x, hand_pos.y - 30)
-	action_tracker_label.size = Vector2(hand_container.size.x, 24)
+	# Position above tab bar
+	var tabs_pos = card_tabs_node.position
+	action_tracker_label.position = Vector2(tabs_pos.x, tabs_pos.y - 28)
+	action_tracker_label.size = Vector2(card_tabs_node.size.x, 24)
 
 func refresh_hand(player: Player):
-	for child in hand_container.get_children():
+	var card_area = card_tabs_node.card_area
+	for child in card_area.get_children():
 		child.queue_free()
 
-	var card_count = player.hand.size()
-	if card_count == 0 or battle == null:
+	if player.hand.size() == 0 or battle == null:
 		return
 
-	# Sort hand into 3 sections: movement | attack | guard
-	var move_cards:  Array = []
-	var atk_cards:   Array = []
-	var guard_cards: Array = []
+	# Show only cards belonging to the active tab
+	var active_tab = card_tabs_node.active_tab
+	var tab_cards: Array = []
 	for c in player.hand:
-		if c.is_movement or c.card_type == "move_disabled":
-			move_cards.append(c)
-		elif c.is_defense():
-			guard_cards.append(c)
-		else:
-			atk_cards.append(c)
+		if _card_section(c) == active_tab:
+			tab_cards.append(c)
 
-	var ordered: Array = []
-	ordered.append_array(move_cards)
-	ordered.append_array(atk_cards)
-	ordered.append_array(guard_cards)
+	var section_done = (active_tab == "move"   and battle.move_done)   or \
+					   (active_tab == "attack" and battle.attack_done) or \
+					   (active_tab == "guard"  and battle.guard_done)
 
-	var GROUP_GAP     = 18.0
-	var overlap       = 65.0
-	var container_width = 1100.0
-	var total_cards   = ordered.size()
-	var num_breaks    = (1 if not move_cards.is_empty() and not atk_cards.is_empty() else 0) + \
-						(1 if not atk_cards.is_empty()  and not guard_cards.is_empty() else 0) + \
-						(1 if move_cards.is_empty() and not atk_cards.is_empty() and not guard_cards.is_empty() else 0)
-	var total_width   = overlap * (total_cards - 1) + 120.0 + GROUP_GAP * num_breaks
-	var start_x       = max(0.0, (container_width - total_width) / 2.0)
-
-	var section_start = {"move": move_cards.size(), "guard": move_cards.size() + atk_cards.size()}
+	var overlap    = 65.0
+	var card_width = 120.0
+	var area_width = card_area.size.x if card_area.size.x > 0 else 680.0
+	var total_width = overlap * max(tab_cards.size() - 1, 0) + card_width
+	var start_x     = max(0.0, (area_width - total_width) / 2.0)
 
 	var running_x = start_x
-	for i in ordered.size():
-		var card = ordered[i]
-
-		# Add group gap at section boundaries
-		if i > 0:
-			var prev = ordered[i - 1]
-			var prev_sec = _card_section(prev)
-			var cur_sec  = _card_section(card)
-			if prev_sec != cur_sec:
-				running_x += GROUP_GAP
-
+	for i in tab_cards.size():
+		var card = tab_cards[i]
 		var is_attack_selected = battle.pending_attack != null and card.card_name == battle.pending_attack.card_name
-		var is_selected = is_attack_selected
 
 		var card_node = card_scene.instantiate() as Card
 		_copy_card_data(card, card_node)
 		card_node.card_clicked.connect(_on_card_clicked.bind(card))
-		hand_container.add_child(card_node)
+		card_area.add_child(card_node)
 
-		var float_offset = Vector2(0, -38) if is_selected else Vector2.ZERO
+		var float_offset = Vector2(0, -38) if is_attack_selected else Vector2.ZERO
 		var final_pos = Vector2(running_x, 0) + float_offset
 		card_node.base_position = final_pos
 		card_node.position = Vector2(running_x, 120)
+		card_node.modulate.a = 0.0
 
-		running_x += overlap
-
-		if is_selected:
+		if is_attack_selected:
 			card_node.z_index = 200
 			card_node.modulate = Color(1.3, 1.1, 0.2, 0.0)
 		else:
 			card_node.z_index = i
-			card_node.modulate.a = 0.0
 
+		var delay = i * 0.025
 		var tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 		tween.set_parallel(true)
-		tween.tween_property(card_node, "position", final_pos, 0.25).set_delay(i * 0.04)
-		tween.tween_property(card_node, "modulate:a", 1.0, 0.2).set_delay(i * 0.04)
+		tween.tween_property(card_node, "position", final_pos, 0.15).set_delay(delay)
+		tween.tween_property(card_node, "modulate:a", 1.0, 0.12).set_delay(delay)
 
-		# Playability
-		var playable = _is_card_playable(card, player)
+		running_x += overlap
+
+		# Section done → show but unclickable
+		var playable = (not section_done) and _is_card_playable(card, player)
 		card_node.set_playable(playable)
 
-		# Checkmark on already-used section
-		var section = _card_section(card)
-		var section_done = (section == "move" and battle.move_done) or \
-						   (section == "attack" and battle.attack_done) or \
-						   (section == "guard" and battle.guard_done)
-
-		if section_done and is_selected or \
-		   (section == "move"   and battle.player_move_card   != null and card.card_name == battle.player_move_card.card_name) or \
-		   (section == "guard"  and battle.player_guard_card  != null and card.card_name == battle.player_guard_card.card_name) or \
-		   (section == "attack" and battle.player_attack_card != null and card.card_name == battle.player_attack_card.card_name):
+		# Checkmark on the confirmed card
+		if (active_tab == "move"   and battle.player_move_card   != null and card.card_name == battle.player_move_card.card_name) or \
+		   (active_tab == "guard"  and battle.player_guard_card  != null and card.card_name == battle.player_guard_card.card_name) or \
+		   (active_tab == "attack" and battle.player_attack_card != null and card.card_name == battle.player_attack_card.card_name):
 			card_node.show_checkmark()
 
 		# Limb warning indicators
