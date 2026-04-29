@@ -11,17 +11,6 @@ const CHARACTERS = [
 		"accent": Color(1.0, 0.45, 0.05),
 		"icon": "🥊",
 		"image": "res://assets/cards/Kickbokser.png"
-	},
-	{
-		"name": "Streamer",
-		"hp": 65,
-		"energy": 4,
-		"description": "Fights from range\nwith lots of content.\n\nHP: 65  |  Energy: 4\n\nDeck: Arrows,\nShield, Gun combo.",
-		"deck_type": "streamer",
-		"bg_color": Color(0.22, 0.05, 0.4),
-		"accent": Color(0.7, 0.3, 1.0),
-		"icon": "🎮",
-		"disabled": true
 	}
 ]
 
@@ -43,13 +32,11 @@ func _build_ui():
 
 	var panel_w = 320.0
 	var panel_h = 390.0
-	var gap = 80.0
-	var total_w = panel_w * 2.0 + gap
-	var sx = (1152.0 - total_w) / 2.0
+	var sx = (1152.0 - panel_w) / 2.0
 	var sy = 150.0
 
 	for i in CHARACTERS.size():
-		var panel = _make_char_panel(CHARACTERS[i], Vector2(sx + i * (panel_w + gap), sy), Vector2(panel_w, panel_h))
+		var panel = _make_char_panel(CHARACTERS[i], Vector2(sx, sy), Vector2(panel_w, panel_h))
 		panel.gui_input.connect(_on_panel_input.bind(i))
 		add_child(panel)
 		char_panels.append(panel)

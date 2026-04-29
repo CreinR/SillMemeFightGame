@@ -224,22 +224,7 @@ func play(player, enemy):
 
 func _create_follow_up(fname: String) -> Card:
 	var c = Card.new()
-	match fname:
-		"Aim Gun":
-			c.card_name = "Aim Gun"
-			c.cost = 0
-			c.costs_all_energy = true
-			c.description = "Aim your weapon.\nCan no longer move.\nNext turn: Fire Gun"
-			c.locks_movement = true
-			c.follow_up_card_name = "Fire Gun"
-		"Fire Gun":
-			c.card_name = "Fire Gun"
-			c.cost = 0
-			c.costs_all_energy = true
-			c.description = "Fire! 200 damage"
-			c.damage = 200
-			c.min_range = 1
-			c.max_range = 5
+	# No follow-up cards are currently defined
 	return c
 
 func _on_mouse_entered():

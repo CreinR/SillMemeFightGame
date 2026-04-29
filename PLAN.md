@@ -46,7 +46,7 @@ A turn-based card fighting game built in Godot 4. Two characters fight on a 6-sl
 
 ## TODO
 - [ ] Enemy status effect labels above enemy character (STUN / JAW / etc.)
-- [ ] Streamer character implementation
+- [ ] Streamer character — full redesign needed for new combat system
 - [ ] Multiple enemy types
 - [ ] Win/loss screen polish
 - [ ] Main menu and character select text cleanup

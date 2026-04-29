@@ -6,10 +6,7 @@
 - Deck: full attack roster available every turn (Jab, Hook, Uppercut, Overhand, Backfist, Roundhouse Kick, Front Kick, Spinning Heel Kick)
 - Character image: `assets/cards/Kickbokser.png`
 
-## Streamer (disabled — coming soon)
-
-- HP: 65 | Energy: 4
-- Deck: Arrows, Shield, Gun combo chain
+<!-- Streamer: planned for future implementation; full redesign needed for new combat system -->
 
 ---
 
