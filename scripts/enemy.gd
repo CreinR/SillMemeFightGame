@@ -1,9 +1,18 @@
 class_name Enemy
 extends Node
 
+var position: int = 4
 var intent_damage: int = 10
 var stun: bool = false
 var attack_target_part: String = "borst"
+
+# Planned actions for the simultaneous turn
+var planned_movement: int = 0     # -1 = away, 0 = stance, 1 = toward player
+var planned_guard: String = ""    # body part being guarded this turn
+var intent_attack_name: String = "Jab"
+var intent_attack_min_range: int = 2
+var intent_attack_max_range: int = 3
+var intent_attack_limb: String = "linkerarm"
 
 # Sub-part effect state
 var jaw_skip_turns: int = 0      # jaw: can't attack for N turns
@@ -13,14 +22,75 @@ var lung_debuff_turns: int = 0   # lung: reduced damage for N turns
 var lung_debuff_value: int = 0   # lung: amount of reduction
 var wrist_miss: bool = false     # wrist: 50% miss on next attack
 var elbow_debuff: int = 0        # elbow: damage reduction on next attack
+var stagger_turns: int = 0       # can't use movement next turn (Spinning Heel miss)
+
+# Full new attack roster (used by enemy AI)
+const ATTACK_ROSTER = [
+	{
+		"name": "Jab", "limb": "linkerarm",
+		"min_range": 2, "max_range": 3,
+		"targets": {
+			"hoofd": {"damage": 6},
+			"borst": {"damage": 5},
+		}
+	},
+	{
+		"name": "Hook", "limb": "rechterarm",
+		"min_range": 1, "max_range": 1,
+		"targets": {
+			"hoofd": {"damage": 12, "effect": "stun"},
+			"borst": {"damage": 10},
+		}
+	},
+	{
+		"name": "Uppercut", "limb": "rechterarm",
+		"min_range": 1, "max_range": 1,
+		"targets": {
+			"hoofd": {"damage": 14, "effect": "stun"},
+			"borst": {"damage": 8},
+		}
+	},
+	{
+		"name": "Overhand", "limb": "rechterarm",
+		"min_range": 1, "max_range": 2,
+		"targets": {
+			"hoofd": {"damage": 10, "effect": "overhand_bypass"},
+		}
+	},
+	{
+		"name": "Roundhouse Kick", "limb": "voeten",
+		"min_range": 2, "max_range": 3,
+		"targets": {
+			"hoofd":      {"damage": 10, "effect": "stun"},
+			"borst":      {"damage": 8},
+			"bovenbenen": {"damage": 6, "effect": "weaken", "value": 3},
+			"voeten":     {"damage": 4, "effect": "stun"},
+		}
+	},
+	{
+		"name": "Front Kick", "limb": "bovenbenen",
+		"min_range": 2, "max_range": 3,
+		"targets": {
+			"borst":      {"damage": 7, "effect": "front_kick_push"},
+			"bovenbenen": {"damage": 6, "effect": "front_kick_push"},
+		}
+	},
+	{
+		"name": "Spinning Heel Kick", "limb": "voeten",
+		"min_range": 3, "max_range": 4,
+		"targets": {
+			"hoofd": {"damage": 16, "effect": "stun"},
+		}
+	},
+]
 
 var body_parts: Dictionary = {
-	"hoofd":       BodyPart.new(),
-	"borst":       BodyPart.new(),
-	"linkerarm":   BodyPart.new(),
-	"rechterarm":  BodyPart.new(),
-	"linkerbeen":  BodyPart.new(),
-	"rechterbeen": BodyPart.new(),
+	"hoofd":      BodyPart.new(),
+	"borst":      BodyPart.new(),
+	"linkerarm":  BodyPart.new(),
+	"rechterarm": BodyPart.new(),
+	"bovenbenen": BodyPart.new(),
+	"voeten":     BodyPart.new(),
 }
 
 func _ready():
@@ -34,8 +104,8 @@ func _setup_body_parts():
 		"borst":      {"hp": 30, "max_hp": 30},
 		"linkerarm":  {"hp": 20, "max_hp": 20},
 		"rechterarm": {"hp": 20, "max_hp": 20},
-		"linkerbeen":  {"hp": 20, "max_hp": 20},
-		"rechterbeen": {"hp": 20, "max_hp": 20},
+		"bovenbenen": {"hp": 20, "max_hp": 20},
+		"voeten":     {"hp": 20, "max_hp": 20},
 	}
 	for pname in configs:
 		body_parts[pname].part_name = pname
@@ -68,7 +138,7 @@ func _setup_sub_parts():
 			 "Ruggenmerg samengeperst! 1 HP over.",
 		 ]},
 	])
-	for leg in ["linkerbeen", "rechterbeen"]:
+	for leg in ["bovenbenen", "voeten"]:
 		_add_subs(leg, [
 			{"name": "Knieschijf", "base_chance": 0.35, "effect": "kneecap",
 			 "log_msg": "Zijn knie geeft het op. Hij staat als een standbeeld."},
@@ -98,9 +168,88 @@ func _add_subs(part_name: String, subs: Array):
 			"stage_msgs":  s.get("stage_msgs", []),
 		})
 
-func _pick_target_part():
-	var targets = ["hoofd", "borst", "linkerarm", "rechterarm", "linkerbeen", "rechterbeen"]
+func _pick_target_part(attack_data: Dictionary = {}):
+	var targets: Array
+	if attack_data.has("targets"):
+		targets = attack_data["targets"].keys()
+	else:
+		targets = ["hoofd", "borst", "bovenbenen", "voeten"]
 	attack_target_part = targets[randi() % targets.size()]
+
+# Called at the start of the player's planning phase — plans all 3 enemy actions.
+func plan_turn(player_pos: int):
+	# --- Movement ---
+	if stagger_turns > 0:
+		stagger_turns -= 1
+		planned_movement = 0
+	else:
+		_plan_movement(player_pos)
+
+	# --- Attack ---
+	_plan_attack(player_pos)
+
+	# --- Guard ---
+	var guard_options = ["hoofd", "borst", "bovenbenen", "voeten"]
+	planned_guard = guard_options[randi() % guard_options.size()]
+
+func _plan_movement(player_pos: int):
+	var distance = abs(player_pos - position)
+	var r = randf()
+	if distance > 3:
+		# Too far — always close in
+		planned_movement = 1
+	elif distance <= 1:
+		# Too close — always back up
+		planned_movement = -1
+	else:
+		# Preferred range: weight toward stance/forward
+		if r < 0.15:
+			planned_movement = -1
+		elif r < 0.55:
+			planned_movement = 0
+		else:
+			planned_movement = 1
+
+func _plan_attack(player_pos: int):
+	var distance = abs(player_pos - position)
+	var valid: Array = []
+	for atk in ATTACK_ROSTER:
+		if distance >= atk["min_range"] and distance <= atk["max_range"]:
+			valid.append(atk)
+	if valid.is_empty():
+		# Fallback to jab regardless of range
+		valid = [ATTACK_ROSTER[0]]
+	var chosen = valid[randi() % valid.size()]
+	intent_attack_name = chosen["name"]
+	intent_attack_min_range = chosen["min_range"]
+	intent_attack_max_range = chosen["max_range"]
+	intent_attack_limb = chosen.get("limb", "linkerarm")
+	_pick_target_part(chosen)
+
+	# Base damage from chosen attack for target
+	var dmg = 0
+	if chosen["targets"].has(attack_target_part):
+		dmg = chosen["targets"][attack_target_part].get("damage", 0)
+
+	# Apply arm damage penalty to intent_damage
+	var limb = body_parts.get(intent_attack_limb)
+	if limb != null:
+		match limb.status:
+			BodyPart.Status.BRUISED:  dmg = int(dmg * 0.85)
+			BodyPart.Status.BROKEN:   dmg = int(dmg * 0.6)
+			BodyPart.Status.DISABLED: dmg = int(dmg * 0.4)
+
+	if lung_debuff_turns > 0:
+		dmg = max(0, dmg - lung_debuff_value)
+
+	intent_damage = dmg
+
+# Returns a dictionary with the attack data for the current planned attack.
+func get_planned_attack_data() -> Dictionary:
+	for atk in ATTACK_ROSTER:
+		if atk["name"] == intent_attack_name:
+			return atk
+	return {}
 
 func take_damage(amount: int, target_part: String) -> Array:
 	var messages = []
@@ -146,7 +295,7 @@ func _apply_sub_effect(effect: String):
 		"spine":
 			pass  # fatal — battle.gd handles game over
 		"kneecap":
-			pass
+			stagger_turns = 2
 		"thigh":
 			intent_damage = max(0, intent_damage - 2)
 		"elbow":
@@ -154,46 +303,10 @@ func _apply_sub_effect(effect: String):
 		"wrist":
 			wrist_miss = true
 
-func take_turn(player) -> Array:
-	var messages = []
-
-	if stun:
-		stun = false
-		messages.append("Vijand is verdoofd en slaat over!")
-		_pick_target_part()
-		return messages
-
-	if jaw_skip_turns > 0:
-		jaw_skip_turns -= 1
-		messages.append("Vijand kan zijn kaak niet bewegen. Hij slaat over!")
-		_pick_target_part()
-		return messages
-
-	if wrist_miss:
-		wrist_miss = false
-		if randf() < 0.5:
-			messages.append("De vijand mist! Zijn pols laat hem in de steek.")
-			_pick_target_part()
-			return messages
-
-	var actual_damage = intent_damage
-	if lung_debuff_turns > 0:
-		actual_damage = max(0, actual_damage - lung_debuff_value)
-		lung_debuff_turns -= 1
-	if elbow_debuff > 0:
-		actual_damage = max(0, actual_damage - elbow_debuff)
-		elbow_debuff = 0
-
-	messages.append("Vijand slaat voor %d schade op %s!" % [actual_damage, attack_target_part])
-	var dmg_messages = player.take_damage(actual_damage, attack_target_part)
-	messages.append_array(dmg_messages)
-
-	if rib_reflect:
-		body_parts["borst"].take_damage(1)
-		messages.append("Krak! Zijn ribben vlammen op bij de aanval.")
-
-	if concussion_turns > 0:
-		concussion_turns -= 1
-
-	_pick_target_part()
-	return messages
+# Guard limb map — which player limb absorbs chip when guarding each part
+const GUARD_LIMB_MAP = {
+	"hoofd":      "linkerarm",
+	"borst":      "rechterarm",
+	"bovenbenen": "bovenbenen",
+	"voeten":     "voeten",
+}

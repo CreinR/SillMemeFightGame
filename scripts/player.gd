@@ -23,29 +23,30 @@ var lung_draw_penalty: int = 0    # draw 1 fewer card for N draws
 var elbow_debuff: int = 0         # reduce own attack damage on next attack
 var wrist_miss: bool = false      # 50% miss on next attack
 var kneecap_turns: int = 0        # can't use Forward/Back for N turns
+var stagger_turns: int = 0        # Spinning Heel miss: can't use movement cards next turn
 
 # Which limb absorbs chip damage when guarding each body part
 const GUARD_LIMB_MAP = {
-	"hoofd":       "linkerarm",
-	"borst":       "rechterarm",
-	"linkerbeen":  "linkerbeen",
-	"rechterbeen": "rechterbeen",
+	"hoofd":      "linkerarm",
+	"borst":      "rechterarm",
+	"bovenbenen": "bovenbenen",
+	"voeten":     "voeten",
 }
 
 const LIMB_DISPLAY = {
-	"linkerarm":   "left arm",
-	"rechterarm":  "right arm",
-	"linkerbeen":  "left leg",
-	"rechterbeen": "right leg",
+	"linkerarm":  "left arm",
+	"rechterarm": "right arm",
+	"bovenbenen": "upper legs",
+	"voeten":     "feet",
 }
 
 var body_parts: Dictionary = {
-	"hoofd":       BodyPart.new(),
-	"borst":       BodyPart.new(),
-	"linkerarm":   BodyPart.new(),
-	"rechterarm":  BodyPart.new(),
-	"linkerbeen":  BodyPart.new(),
-	"rechterbeen": BodyPart.new(),
+	"hoofd":      BodyPart.new(),
+	"borst":      BodyPart.new(),
+	"linkerarm":  BodyPart.new(),
+	"rechterarm": BodyPart.new(),
+	"bovenbenen": BodyPart.new(),
+	"voeten":     BodyPart.new(),
 }
 
 func _ready():
@@ -58,8 +59,8 @@ func _setup_body_parts():
 		"borst":      {"hp": 30, "max_hp": 30},
 		"linkerarm":  {"hp": 20, "max_hp": 20},
 		"rechterarm": {"hp": 20, "max_hp": 20},
-		"linkerbeen":  {"hp": 20, "max_hp": 20},
-		"rechterbeen": {"hp": 20, "max_hp": 20},
+		"bovenbenen": {"hp": 20, "max_hp": 20},
+		"voeten":     {"hp": 20, "max_hp": 20},
 	}
 	for pname in configs:
 		body_parts[pname].part_name = pname
@@ -92,7 +93,7 @@ func _setup_sub_parts():
 			 "Spine compressed! 1 HP remaining.",
 		 ]},
 	])
-	for leg in ["linkerbeen", "rechterbeen"]:
+	for leg in ["bovenbenen", "voeten"]:
 		_add_subs(leg, [
 			{"name": "Kneecap", "base_chance": 0.35, "effect": "kneecap",
 			 "log_msg": "Your kneecap relocates. Staying put it is."},
@@ -133,6 +134,8 @@ func start_turn():
 	for c in pending_cards:
 		hand.append(c)
 	pending_cards.clear()
+	if stagger_turns > 0:
+		stagger_turns -= 1
 
 func draw_cards(amount: int):
 	var actual = max(0, amount - (1 if lung_draw_penalty > 0 else 0))
