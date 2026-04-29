@@ -23,8 +23,8 @@ func _get_part_rects() -> Dictionary:
 	return {
 		"hoofd":      Rect2(cx - 13, 0,  26, 26),
 		"borst":      Rect2(cx - 10, 26, 20, 26),
-		"linkerbeen": Rect2(cx - 12, 52, 24, 11),
-		"rechterbeen":     Rect2(cx - 12, 63, 24, 12),
+		"bovenbenen": Rect2(cx - 12, 52, 24, 11),
+		"voeten":     Rect2(cx - 12, 63, 24, 12),
 	}
 
 func _get_part_at(pos: Vector2) -> String:

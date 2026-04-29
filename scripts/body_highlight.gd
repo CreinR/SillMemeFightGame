@@ -6,8 +6,8 @@ var parts = {
 	"borst":      {"rect": Rect2(-30,  -92, 60,  75), "flash": false},
 	"linkerarm":  {"rect": Rect2(-60,  -92, 26,  65), "flash": false},
 	"rechterarm": {"rect": Rect2( 34,  -92, 26,  65), "flash": false},
-	"linkerbeen":  {"rect": Rect2(-30,  -15, 26,  80), "flash": false},
-	"rechterbeen": {"rect": Rect2(  4,  -15, 26,  80), "flash": false},
+	"bovenbenen": {"rect": Rect2(-30,  -15, 26,  45), "flash": false},
+	"voeten":     {"rect": Rect2(  4,  -15, 26,  45), "flash": false},
 }
 
 const HEALTHY_COLOR  = Color(0.2, 0.8, 0.2, 0.3)
@@ -20,7 +20,7 @@ const DANGER_COLOR   = Color(0.95, 0.1, 0.1, 0.5)
 
 var enemy_ref: Enemy = null
 var valid_parts: Array = []
-var _tooltip = null   # BodyTooltip
+var _tooltip = null
 var _hovered_part: String = ""
 
 func setup(enemy: Enemy, tooltip = null):

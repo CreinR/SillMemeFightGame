@@ -11,8 +11,8 @@ func _get_part_rects() -> Dictionary:
 	return {
 		"hoofd":      Rect2(cx - 14, 0,  28, 26),
 		"borst":      Rect2(cx - 13, 25, 26, 27),
-		"linkerbeen": Rect2(cx - 12, 52, 24, 11),
-		"rechterbeen":     Rect2(cx - 12, 63, 24, 12),
+		"bovenbenen": Rect2(cx - 12, 52, 24, 11),
+		"voeten":     Rect2(cx - 12, 63, 24, 12),
 	}
 
 func _draw():

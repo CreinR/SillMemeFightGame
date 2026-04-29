@@ -1,21 +1,21 @@
 class_name BattleUI
 extends Control
 
-@onready var player_hp_label = $PlayerPanel/HP
-@onready var player_hp_bar = $PlayerPanel/HPBar
-@onready var player_block_label = $PlayerPanel/Block
+@onready var player_hp_label      = $PlayerPanel/HP
+@onready var player_hp_bar        = $PlayerPanel/HPBar
+@onready var player_block_label   = $PlayerPanel/Block
 @onready var player_energy_label = $PlayerPanel/Energy
 @onready var player_defending_label = $PlayerPanel/Verdediging
-@onready var enemy_hp_label = $EnemyPanel/HP
-@onready var enemy_hp_bar = $EnemyPanel/HPBar
-@onready var enemy_intent_label = $EnemyPanel/Intent
-@onready var hand_container = $Hand
-@onready var hand_label = $HandLabel
-@onready var end_turn_button = $EndTurnButton
-@onready var phase_label = $PhaseLabel
+@onready var enemy_hp_label       = $EnemyPanel/HP
+@onready var enemy_hp_bar         = $EnemyPanel/HPBar
+@onready var enemy_intent_label   = $EnemyPanel/Intent
+@onready var hand_container       = $Hand
+@onready var hand_label           = $HandLabel
+@onready var end_turn_button      = $EndTurnButton
+@onready var phase_label          = $PhaseLabel
 @onready var battlefield_container = $BattlefieldContainer
-@onready var distance_label = $DistanceLabel
-@onready var target_label = $TargetLabel
+@onready var distance_label       = $DistanceLabel
+@onready var target_label         = $TargetLabel
 
 var battle: Battle
 var card_scene = preload("res://scenes/card.tscn")
@@ -27,10 +27,11 @@ var player_character: Control = null
 var enemy_character: Control = null
 var player_status_label: Label = null
 var enemy_status_label: Label = null
+var action_tracker_label: Label = null
 
 const SLOT_COUNT = 6
 const SLOT_WIDTH = 185.0
-const SLOT_GAP = 2.0
+const SLOT_GAP   = 2.0
 
 func setup(battle_node: Battle):
 	battle = battle_node
@@ -40,6 +41,7 @@ func setup(battle_node: Battle):
 	_style_button()
 	_style_bars()
 	_create_battlefield()
+	_create_action_tracker()
 	update(battle.player, battle.enemy)
 
 func _style_bars():
@@ -152,10 +154,21 @@ func _create_battlefield():
 
 	_update_battlefield()
 
+func _create_action_tracker():
+	action_tracker_label = Label.new()
+	action_tracker_label.add_theme_font_size_override("font_size", 14)
+	action_tracker_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.85))
+	action_tracker_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	action_tracker_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Position above the hand container — phase_label node is repurposed as anchor
+	phase_label.visible = false
+	add_child(action_tracker_label)
+	# Will be positioned in update()
+
 func _update_battlefield():
-	const ENEMY_SLOT = 4
 	for i in slot_panels.size():
 		var is_player = (i == battle.player.position)
+		var is_enemy  = (i == battle.enemy.position)
 		var style = StyleBoxFlat.new()
 		style.border_width_left = 2
 		style.border_width_right = 2
@@ -169,7 +182,7 @@ func _update_battlefield():
 		if is_player:
 			style.bg_color = Color(0.1, 0.22, 0.1)
 			style.border_color = Color(0.3, 0.9, 0.3)
-		elif i == ENEMY_SLOT:
+		elif is_enemy:
 			style.bg_color = Color(0.22, 0.08, 0.08)
 			style.border_color = Color(0.9, 0.2, 0.2)
 		else:
@@ -179,7 +192,7 @@ func _update_battlefield():
 		slot_panels[i].add_theme_stylebox_override("panel", style)
 
 	var px = battle.player.position * (SLOT_WIDTH + SLOT_GAP) + (SLOT_WIDTH - 80) / 2
-	var ex = ENEMY_SLOT * (SLOT_WIDTH + SLOT_GAP) + (SLOT_WIDTH - 80) / 2
+	var ex = battle.enemy.position * (SLOT_WIDTH + SLOT_GAP) + (SLOT_WIDTH - 80) / 2
 
 	var tp = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUINT)
 	tp.tween_property(player_character, "position", Vector2(px, 8), 0.2)
@@ -195,15 +208,6 @@ func _update_battlefield():
 func _on_slot_clicked(_event: InputEvent, _slot_index: int):
 	pass
 
-func _update_defending_label(part: String):
-	var names = {"hoofd": "Head", "borst": "Chest", "linkerarm": "Left Arm", "rechterarm": "Right Arm", "linkerbeen": "Left Leg", "rechterbeen": "Right Leg"}
-	if part == "":
-		player_defending_label.text = "Defending: —"
-		player_defending_label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	else:
-		player_defending_label.text = "Defending: " + names.get(part, part)
-		player_defending_label.add_theme_color_override("font_color", Color(0.0, 0.8, 1.0))
-
 func update(player: Player, enemy: Enemy):
 	player_hp_label.visible = false
 	player_hp_bar.visible = false
@@ -211,14 +215,23 @@ func update(player: Player, enemy: Enemy):
 	enemy_hp_bar.visible = false
 	player_energy_label.visible = false
 	player_block_label.visible = false
-	var part_labels = {"hoofd": "Head", "borst": "Chest", "linkerarm": "Left Arm", "rechterarm": "Right Arm", "linkerbeen": "Left Leg", "rechterbeen": "Right Leg"}
-	enemy_intent_label.text = "Attack: %d → %s" % [enemy.intent_damage, part_labels.get(enemy.attack_target_part, enemy.attack_target_part)]
+
+	var part_labels = {
+		"hoofd": "Head", "borst": "Chest",
+		"linkerarm": "Left Arm", "rechterarm": "Right Arm",
+		"bovenbenen": "Upper Legs", "voeten": "Feet",
+	}
+	enemy_intent_label.text = "Attack: %d → %s" % [
+		enemy.intent_damage,
+		part_labels.get(enemy.attack_target_part, enemy.attack_target_part)
+	]
 	enemy_intent_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
+
 	if enemy_character != null:
 		enemy_character.queue_redraw()
 	hand_label.visible = false
-
 	player_defending_label.visible = false
+
 	if player_character != null:
 		player_character.selected_part = player.defending_part
 		player_character.update_body_parts(player.body_parts)
@@ -229,19 +242,63 @@ func update(player: Player, enemy: Enemy):
 
 	if player_status_label != null:
 		var effects: Array = []
-		if player.jaw_skip_attack > 0:    effects.append("JAW")
-		if player.concussion_turns > 0:   effects.append("DIZZY")
-		if player.rib_self_damage:        effects.append("RIBS")
-		if player.lung_draw_penalty > 0:  effects.append("LUNG")
-		if player.elbow_debuff > 0:       effects.append("ELBOW")
-		if player.wrist_miss:             effects.append("WRIST")
-		if player.kneecap_turns > 0:      effects.append("KNEE")
+		if player.jaw_skip_attack > 0:   effects.append("JAW")
+		if player.concussion_turns > 0:  effects.append("DIZZY")
+		if player.rib_self_damage:       effects.append("RIBS")
+		if player.lung_draw_penalty > 0: effects.append("LUNG")
+		if player.elbow_debuff > 0:      effects.append("ELBOW")
+		if player.wrist_miss:            effects.append("WRIST")
+		if player.kneecap_turns > 0:     effects.append("KNEE")
+		if player.stagger_turns > 0:     effects.append("STAGGER")
 		player_status_label.text = " ".join(effects)
 		var label_color = Color(1.0, 0.5, 0.1) if not effects.is_empty() else Color(0, 0, 0, 0)
 		player_status_label.add_theme_color_override("font_color", label_color)
 
-	_update_phase_ui()
+	_update_action_tracker()
 	refresh_hand(player)
+
+	# End Turn button always visible
+	end_turn_button.visible = true
+	end_turn_button.text = "End Turn"
+
+func _update_action_tracker():
+	if action_tracker_label == null or battle == null:
+		return
+
+	var move_text  = "Move: —"
+	var atk_text   = "Attack: —"
+	var guard_text = "Guard: —"
+
+	if battle.move_done:
+		var mc = battle.player_move_card
+		if mc != null:
+			move_text = "Move: %s ✓" % mc.card_name
+		else:
+			move_text = "Move: Skip ✓"
+
+	if battle.attack_done:
+		var ac = battle.player_attack_card
+		if ac != null:
+			var part_labels = {"hoofd": "Head", "borst": "Chest", "bovenbenen": "Legs", "voeten": "Feet"}
+			var tgt = part_labels.get(battle.player_attack_target, battle.player_attack_target)
+			atk_text = "Attack: %s→%s ✓" % [ac.card_name, tgt]
+		else:
+			atk_text = "Attack: Skip ✓"
+	elif battle.pending_attack != null:
+		atk_text = "Attack: %s (pick target)" % battle.pending_attack.card_name
+
+	if battle.guard_done:
+		var gc = battle.player_guard_card
+		if gc != null:
+			guard_text = "Guard: %s ✓" % gc.card_name
+		else:
+			guard_text = "Guard: Skip ✓"
+
+	action_tracker_label.text = "[ %s ]  [ %s ]  [ %s ]" % [move_text, atk_text, guard_text]
+	# Position above hand container
+	var hand_pos = hand_container.position
+	action_tracker_label.position = Vector2(hand_pos.x, hand_pos.y - 30)
+	action_tracker_label.size = Vector2(hand_container.size.x, 24)
 
 func refresh_hand(player: Player):
 	for child in hand_container.get_children():
@@ -251,162 +308,179 @@ func refresh_hand(player: Player):
 	if card_count == 0 or battle == null:
 		return
 
-	var GROUP_GAP = 55.0
-	var container_width = 780.0
-	var overlap = 65.0
+	# Sort hand into 3 sections: movement | attack | guard
+	var move_cards:  Array = []
+	var atk_cards:   Array = []
+	var guard_cards: Array = []
+	for c in player.hand:
+		if c.is_movement or c.card_type == "move_disabled":
+			move_cards.append(c)
+		elif c.is_defense():
+			guard_cards.append(c)
+		else:
+			atk_cards.append(c)
 
-	var group_break_idx = -1
-	for i in range(1, card_count):
-		if player.hand[i].is_body_part_target and not player.hand[i - 1].is_body_part_target:
-			group_break_idx = i
-			break
+	var ordered: Array = []
+	ordered.append_array(move_cards)
+	ordered.append_array(atk_cards)
+	ordered.append_array(guard_cards)
 
-	var total_width = overlap * (card_count - 1) + 120.0 + (GROUP_GAP if group_break_idx >= 0 else 0.0)
-	var start_x = max(0.0, (container_width - total_width) / 2.0)
+	var GROUP_GAP     = 18.0
+	var overlap       = 65.0
+	var container_width = 1100.0
+	var total_cards   = ordered.size()
+	var num_breaks    = (1 if not move_cards.is_empty() and not atk_cards.is_empty() else 0) + \
+						(1 if not atk_cards.is_empty()  and not guard_cards.is_empty() else 0) + \
+						(1 if move_cards.is_empty() and not atk_cards.is_empty() and not guard_cards.is_empty() else 0)
+	var total_width   = overlap * (total_cards - 1) + 120.0 + GROUP_GAP * num_breaks
+	var start_x       = max(0.0, (container_width - total_width) / 2.0)
 
-	for i in card_count:
-		var card = player.hand[i]
-		var extra_x = GROUP_GAP if (group_break_idx >= 0 and i >= group_break_idx) else 0.0
+	var section_start = {"move": move_cards.size(), "guard": move_cards.size() + atk_cards.size()}
+
+	var running_x = start_x
+	for i in ordered.size():
+		var card = ordered[i]
+
+		# Add group gap at section boundaries
+		if i > 0:
+			var prev = ordered[i - 1]
+			var prev_sec = _card_section(prev)
+			var cur_sec  = _card_section(card)
+			if prev_sec != cur_sec:
+				running_x += GROUP_GAP
+
 		var is_attack_selected = battle.pending_attack != null and card.card_name == battle.pending_attack.card_name
-		var is_guard_selected  = battle.pending_guard  != null and card.card_name == battle.pending_guard.card_name
-		var is_selected = is_attack_selected or is_guard_selected
+		var is_selected = is_attack_selected
 
 		var card_node = card_scene.instantiate() as Card
-		card_node.card_name = card.card_name
-		card_node.cost = card.cost
-		card_node.description = card.description
-		card_node.damage = card.damage
-		card_node.block = card.block
-		card_node.card_type = card.card_type
-		card_node.min_range = card.min_range
-		card_node.max_range = card.max_range
-		card_node.locks_movement = card.locks_movement
-		card_node.follow_up_card_name = card.follow_up_card_name
-		card_node.costs_all_energy = card.costs_all_energy
-		card_node.body_part_effects = card.body_part_effects
-		card_node.defends_part = card.defends_part
-		card_node.combo_names = card.combo_names
-		card_node.is_movement = card.is_movement
-		card_node.move_direction = card.move_direction
-		card_node.is_body_part_target = card.is_body_part_target
-		card_node.target_part = card.target_part
+		_copy_card_data(card, card_node)
 		card_node.card_clicked.connect(_on_card_clicked.bind(card))
 		hand_container.add_child(card_node)
 
-		var base_pos = Vector2(start_x + i * overlap + extra_x, 0)
 		var float_offset = Vector2(0, -38) if is_selected else Vector2.ZERO
-		var final_pos = base_pos + float_offset
+		var final_pos = Vector2(running_x, 0) + float_offset
 		card_node.base_position = final_pos
-		card_node.position = base_pos + Vector2(0, 120)
+		card_node.position = Vector2(running_x, 120)
+
+		running_x += overlap
 
 		if is_selected:
 			card_node.z_index = 200
-			card_node.modulate = Color(0.2, 0.8, 1.3, 0.0) if is_guard_selected else Color(1.3, 1.1, 0.2, 0.0)
+			card_node.modulate = Color(1.3, 1.1, 0.2, 0.0)
 		else:
 			card_node.z_index = i
 			card_node.modulate.a = 0.0
 
 		var tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 		tween.set_parallel(true)
-		tween.tween_property(card_node, "position", final_pos, 0.25).set_delay(i * 0.05)
-		tween.tween_property(card_node, "modulate:a", 1.0, 0.2).set_delay(i * 0.05)
+		tween.tween_property(card_node, "position", final_pos, 0.25).set_delay(i * 0.04)
+		tween.tween_property(card_node, "modulate:a", 1.0, 0.2).set_delay(i * 0.04)
 
-		if not is_selected:
-			var playable = true
-			if battle.turn_phase == 1:
-				if card.is_movement:
-					if card.move_direction == 0:
-						playable = true
-					elif battle.player.kneecap_turns > 0:
-						playable = false
-					else:
-						var toward = sign(4 - player.position)
-						var new_pos = player.position + card.move_direction * toward
-						playable = (new_pos >= 0) and (new_pos < SLOT_COUNT) and (new_pos != 4)
-				else:
-					playable = false
-			elif battle.turn_phase == 2:
-				if card.is_defense():
-					playable = false
-				elif card.is_attack():
-					var distance = abs(player.position - 4)
-					playable = distance >= card.min_range and distance <= card.max_range
-			elif battle.turn_phase == 3:
-				playable = card.is_defense()
-			card_node.set_playable(playable)
+		# Playability
+		var playable = _is_card_playable(card, player)
+		card_node.set_playable(playable)
 
-			# Limb warning indicators
-			var warn_level = 0
-			if not card.body_part_effects.is_empty() and battle.ATTACK_LIMB_MAP.has(card.card_name):
-				var ln = battle.ATTACK_LIMB_MAP[card.card_name]
-				var atk_limb = player.body_parts.get(ln)
-				if atk_limb != null:
-					match atk_limb.status:
-						BodyPart.Status.DISABLED:                         warn_level = 2
-						BodyPart.Status.BRUISED, BodyPart.Status.BROKEN:  warn_level = 1
-			elif card.defends_part != "":
-				var required = battle.GUARD_LIMB_REQ.get(card.defends_part, [])
-				for ln in required:
-					var g_limb = player.body_parts.get(ln)
-					if g_limb == null:
-						continue
-					if g_limb.status == BodyPart.Status.DISABLED:
-						warn_level = 3
-						break
-					elif g_limb.status == BodyPart.Status.BRUISED or g_limb.status == BodyPart.Status.BROKEN:
-						warn_level = max(warn_level, 1)
-			if warn_level > 0:
-				card_node.set_limb_warning(warn_level)
+		# Checkmark on already-used section
+		var section = _card_section(card)
+		var section_done = (section == "move" and battle.move_done) or \
+						   (section == "attack" and battle.attack_done) or \
+						   (section == "guard" and battle.guard_done)
+
+		if section_done and is_selected or \
+		   (section == "move"   and battle.player_move_card   != null and card.card_name == battle.player_move_card.card_name) or \
+		   (section == "guard"  and battle.player_guard_card  != null and card.card_name == battle.player_guard_card.card_name) or \
+		   (section == "attack" and battle.player_attack_card != null and card.card_name == battle.player_attack_card.card_name):
+			card_node.show_checkmark()
+
+		# Limb warning indicators
+		var warn_level = 0
+		if not card.body_part_effects.is_empty() and battle.ATTACK_LIMB_MAP.has(card.card_name):
+			var ln = battle.ATTACK_LIMB_MAP[card.card_name]
+			var atk_limb = player.body_parts.get(ln)
+			if atk_limb != null:
+				match atk_limb.status:
+					BodyPart.Status.DISABLED:                        warn_level = 2
+					BodyPart.Status.BRUISED, BodyPart.Status.BROKEN: warn_level = 1
+		elif card.defends_part != "":
+			var required = battle.GUARD_LIMB_REQ.get(card.defends_part, [])
+			for ln in required:
+				var g_limb = player.body_parts.get(ln)
+				if g_limb == null:
+					continue
+				if g_limb.status == BodyPart.Status.DISABLED:
+					warn_level = 3
+					break
+				elif g_limb.status in [BodyPart.Status.BRUISED, BodyPart.Status.BROKEN]:
+					warn_level = max(warn_level, 1)
+		if warn_level > 0:
+			card_node.set_limb_warning(warn_level)
+
+func _card_section(card: Card) -> String:
+	if card.is_movement or card.card_type == "move_disabled":
+		return "move"
+	elif card.is_defense():
+		return "guard"
+	return "attack"
+
+func _is_card_playable(card: Card, player: Player) -> bool:
+	var section = _card_section(card)
+	# If section already done, not playable
+	if section == "move"   and battle.move_done:   return false
+	if section == "attack" and battle.attack_done: return false
+	if section == "guard"  and battle.guard_done:  return false
+
+	if section == "move":
+		if card.card_type == "move_disabled":
+			return false
+		if card.move_direction == 0:
+			return true
+		if player.kneecap_turns > 0:
+			return false
+		var toward = sign(battle.enemy.position - player.position)
+		var new_pos = player.position + card.move_direction * toward
+		return new_pos >= 0 and new_pos < SLOT_COUNT and new_pos != battle.enemy.position
+
+	if section == "attack":
+		var distance = abs(player.position - battle.enemy.position)
+		return distance >= card.min_range and distance <= card.max_range
+
+	# guard cards always playable if section not done
+	return true
+
+func _copy_card_data(src: Card, dst: Card):
+	dst.card_name           = src.card_name
+	dst.cost                = src.cost
+	dst.description         = src.description
+	dst.damage              = src.damage
+	dst.block               = src.block
+	dst.card_type           = src.card_type
+	dst.min_range           = src.min_range
+	dst.max_range           = src.max_range
+	dst.locks_movement      = src.locks_movement
+	dst.follow_up_card_name = src.follow_up_card_name
+	dst.costs_all_energy    = src.costs_all_energy
+	dst.body_part_effects   = src.body_part_effects
+	dst.defends_part        = src.defends_part
+	dst.combo_names         = src.combo_names
+	dst.is_movement         = src.is_movement
+	dst.move_direction      = src.move_direction
+	dst.is_body_part_target = src.is_body_part_target
+	dst.target_part         = src.target_part
 
 func _on_card_clicked(card: Card):
-	if battle.turn_phase == 2 and card.is_attack() and not card.body_part_effects.is_empty():
-		battle.play_card(card)
-	elif battle.turn_phase == 3 and card.is_defense():
-		battle.select_guard(card)
-	else:
-		_play_card_animation(card)
-
-func _play_card_animation(card: Card):
-	var target_node: Card = null
-	for child in hand_container.get_children():
-		if child is Card and child.card_name == card.card_name:
-			target_node = child
-			break
-	if target_node == null:
-		battle.play_card(card)
-		update(battle.player, battle.enemy)
+	if card.card_type == "move_disabled":
 		return
-
-	var container_origin = hand_container.get_global_rect().position
-	var center_pos = Vector2(get_viewport_rect().size.x / 2.0 - container_origin.x - 60, -210)
-
-	var t1 = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUINT)
-	t1.set_parallel(true)
-	t1.tween_property(target_node, "position", center_pos, 0.25)
-	t1.tween_property(target_node, "scale", Vector2(1.4, 1.4), 0.25)
-	await get_tree().create_timer(0.35).timeout
-
-	# Fase 2: transformatie naar specifieke move (alleen bij combo-kaarten)
-	if not card.body_part_effects.is_empty() and not card.combo_names.is_empty():
-		var pulse = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-		pulse.tween_property(target_node, "scale", Vector2(1.7, 1.7), 0.12)
-		await get_tree().create_timer(0.1).timeout
-		target_node.show_as_combo(battle.selected_body_part)
-		var shrink = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
-		shrink.tween_property(target_node, "scale", Vector2(1.4, 1.4), 0.15)
-		await get_tree().create_timer(0.6).timeout
-
-	# Fase 3: fade out
-	var t2 = create_tween().set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUINT)
-	t2.tween_property(target_node, "modulate:a", 0.0, 0.2)
-	await t2.finished
-
-	battle.play_card(card)
+	if card.is_movement:
+		battle.choose_movement(card)
+	elif card.is_attack() and not card.body_part_effects.is_empty():
+		battle.choose_attack(card)
+	elif card.is_defense():
+		battle.choose_guard(card)
 
 func _animate_player_attack():
 	if player_character == null:
 		return
-	var lunge_dir = sign(4 - battle.player.position)
+	var lunge_dir = sign(battle.enemy.position - battle.player.position)
 	var original_pos = player_character.position
 	var lunge_pos = original_pos + Vector2(lunge_dir * 22, -8)
 	var t1 = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUINT)
@@ -415,28 +489,14 @@ func _animate_player_attack():
 	var t2 = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 	t2.tween_property(player_character, "position", original_pos, 0.25)
 
-func _update_phase_ui():
-	if battle == null:
-		return
-	match battle.turn_phase:
-		1:
-			phase_label.text = "Phase 1: Move"
-			phase_label.add_theme_color_override("font_color", Color(0.9, 0.75, 0.2))
-			end_turn_button.visible = false
-		2:
-			phase_label.text = "Phase 2: Attack"
-			phase_label.add_theme_color_override("font_color", Color(1.0, 0.4, 0.4))
-			end_turn_button.visible = true
-			end_turn_button.text = "Skip →"
-		3:
-			phase_label.text = "Phase 3: Defense"
-			phase_label.add_theme_color_override("font_color", Color(0.3, 0.7, 1.0))
-			end_turn_button.visible = true
-			end_turn_button.text = "End Turn"
-	phase_label.add_theme_font_size_override("font_size", 15)
-
 func _on_end_turn():
-	if battle.turn_phase == 3:
-		battle.end_turn()
-	else:
-		battle.advance_phase()
+	# Skip any unfinished actions and resolve
+	if not battle.move_done:
+		battle.move_done = true
+	if not battle.attack_done:
+		battle.pending_attack = null
+		battle.body_highlight.set_valid_parts([])
+		battle.attack_done = true
+	if not battle.guard_done:
+		battle.guard_done = true
+	battle.resolve_turn()

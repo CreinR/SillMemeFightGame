@@ -32,6 +32,8 @@ var limb_warning_level: int = 0
 var _warning_dot: Label = null
 var _disabled_label: Label = null
 var _warning_overlay: ColorRect = null
+var _checkmark_overlay: ColorRect = null
+var _checkmark_label: Label = null
 
 @onready var name_label = $Panel/VBox/Naam
 @onready var desc_label = $Panel/VBox/Beschrijving
@@ -57,6 +59,8 @@ func _ready():
 	mouse_exited.connect(_on_mouse_exited)
 
 func is_attack() -> bool:
+	if card_type in ["move", "move_disabled", "block"]:
+		return false
 	return card_type == "attack" or damage > 0 or not body_part_effects.is_empty()
 
 func is_defense() -> bool:
@@ -121,6 +125,27 @@ func _create_limb_warning_nodes():
 	_disabled_label.visible = false
 	add_child(_disabled_label)
 
+	_checkmark_overlay = ColorRect.new()
+	_checkmark_overlay.z_index = 9
+	_checkmark_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_checkmark_overlay.color = Color(0.0, 0.55, 0.15, 0.45)
+	_checkmark_overlay.anchor_right = 1.0
+	_checkmark_overlay.anchor_bottom = 1.0
+	_checkmark_overlay.visible = false
+	add_child(_checkmark_overlay)
+
+	_checkmark_label = Label.new()
+	_checkmark_label.z_index = 11
+	_checkmark_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_checkmark_label.text = "✓"
+	_checkmark_label.add_theme_font_size_override("font_size", 28)
+	_checkmark_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4))
+	_checkmark_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_checkmark_label.position = Vector2(0, 35)
+	_checkmark_label.size = Vector2(120, 40)
+	_checkmark_label.visible = false
+	add_child(_checkmark_label)
+
 func set_limb_warning(level: int):
 	limb_warning_level = level
 	if _warning_dot == null:
@@ -145,6 +170,12 @@ func set_limb_warning(level: int):
 			_warning_dot.visible = true
 			_warning_overlay.visible = true
 			_disabled_label.visible = true
+
+func show_checkmark():
+	if _checkmark_overlay != null:
+		_checkmark_overlay.visible = true
+	if _checkmark_label != null:
+		_checkmark_label.visible = true
 
 func set_playable(playable: bool):
 	is_playable = playable
